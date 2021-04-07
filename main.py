@@ -78,7 +78,7 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
 dataloader = DataLoader(
-    SRDataset(hr_shape, hr_dir="./data/%s" % opt.hr_dataset_name, lr_dir="./data/%s" % opt.lr_dataset_name),
+    SRDataset(hr_shape, hr_dir="./data/%s" % opt.hr_dataset_name, lr_dir="./data/%s" % opt.lr_dataset_name, scaling=8),
     batch_size=opt.batch_size,
     shuffle=True,
     num_workers=opt.n_cpu,
