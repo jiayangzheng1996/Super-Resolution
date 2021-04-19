@@ -38,6 +38,7 @@ parser.add_argument("--n_cpu", type=int, default=0, help="number of cpu threads 
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
+parser.add_argument("--scale_factor", type=int, default=4, help="scale factor for low resolution image")
 parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
 parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
 opt = parser.parse_args()
@@ -48,7 +49,7 @@ cuda = torch.cuda.is_available()
 hr_shape = (opt.hr_height, opt.hr_width)
 
 # Initialize generator and discriminator
-generator = GeneratorResNet()
+generator = GeneratorResNet(scale_loop=3)
 discriminator = Discriminator(input_shape=(opt.channels, *hr_shape))
 feature_extractor = FeatureExtractor()
 
@@ -66,10 +67,10 @@ if cuda:
     criterion_GAN = criterion_GAN.cuda()
     criterion_content = criterion_content.cuda()
 
-if opt.epoch != 0:
-    # Load pretrained models
-    generator.load_state_dict(torch.load("saved_models/generator_%d.pth"))
-    discriminator.load_state_dict(torch.load("saved_models/discriminator_%d.pth"))
+# if opt.epoch != 0:
+#     # Load pretrained models
+#     generator.load_state_dict(torch.load("saved_models/generator_%d.pth"))
+#     discriminator.load_state_dict(torch.load("saved_models/discriminator_%d.pth"))
 
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -150,7 +151,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         batches_done = epoch * len(dataloader) + i
         if batches_done % opt.sample_interval == 0:
             # Save image grid with upsampled inputs and SRGAN outputs
-            imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
+            imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.scale_factor)
             gen_hr = make_grid(gen_hr, nrow=1, normalize=True)
             imgs_lr = make_grid(imgs_lr, nrow=1, normalize=True)
             img_grid = torch.cat((imgs_lr, gen_hr), -1)
