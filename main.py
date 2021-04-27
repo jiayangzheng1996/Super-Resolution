@@ -20,7 +20,9 @@ from datasets import *
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-
+import pytorch_ssim
+from math import log10
+from loss import GeneratorLoss
 os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
@@ -29,6 +31,8 @@ parser.add_argument("--epoch", type=int, default=0, help="epoch to start trainin
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 parser.add_argument("--hr_dataset_name", type=str, default="DIV2K_train_HR", help="name of the dataset")
 parser.add_argument("--lr_dataset_name", type=str, default="DIV2K_train_LR_x8")
+parser.add_argument("--hr_val_dataset_name", type=str, default="DIV2K_valid_HR", help="name of the dataset")
+parser.add_argument("--lr_val_dataset_name", type=str, default="DIV2K_valid_LR_x8")
 parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
@@ -40,6 +44,7 @@ parser.add_argument("--hr_width", type=int, default=256, help="high res. image w
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
 parser.add_argument("--scale_factor", type=int, default=4, help="scale factor for low resolution image")
 parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
+parser.add_argument("--val_sample_interval", type=int, default=4, help="interval between saving image samples for validation")
 parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
 opt = parser.parse_args()
 print(opt)
@@ -57,7 +62,7 @@ feature_extractor = FeatureExtractor()
 feature_extractor.eval()
 
 # Losses
-criterion_GAN = torch.nn.MSELoss()
+criterion_GAN =  GeneratorLoss()
 criterion_content = torch.nn.L1Loss()
 
 if cuda:
@@ -85,6 +90,13 @@ dataloader = DataLoader(
     num_workers=opt.n_cpu,
 )
 
+val_dataloader = DataLoader(
+    SRDataset(hr_shape, hr_dir="./data/%s" % opt.hr_val_dataset_name, lr_dir="./data/%s" % opt.lr_val_dataset_name, scaling=8),
+    batch_size=opt.batch_size,
+    shuffle=True,
+    num_workers=opt.n_cpu,
+)
+
 # ----------
 #  Training
 # ----------
@@ -96,55 +108,34 @@ for epoch in range(opt.epoch, opt.n_epochs):
         imgs_lr = Variable(imgs["lr"].type(Tensor))
         imgs_hr = Variable(imgs["hr"].type(Tensor))
 
-        # Adversarial ground truths
-        valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-        fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-
-        # ------------------
-        #  Train Generators
-        # ------------------
-
-        optimizer_G.zero_grad()
-
-        # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr)
-
-        # Adversarial loss
-        loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
-
-        # Content loss
-        gen_features = feature_extractor(gen_hr)
-        real_features = feature_extractor(imgs_hr)
-        loss_content = criterion_content(gen_features, real_features.detach())
-
-        # Total loss
-        loss_G = loss_content + 1e-3 * loss_GAN
-
-        loss_G.backward()
-        optimizer_G.step()
 
         # ---------------------
         #  Train Discriminator
         # ---------------------
 
         optimizer_D.zero_grad()
-
-        # Loss of real and fake images
-        loss_real = criterion_GAN(discriminator(imgs_hr), valid)
-        loss_fake = criterion_GAN(discriminator(gen_hr.detach()), fake)
-
-        # Total loss
-        loss_D = (loss_real + loss_fake) / 2
-
-        loss_D.backward()
+        real_out = discriminator(imgs_hr).mean()
+        fake_out = discriminator(gen_hr.detach()).mean()
+        loss_D = 1 - real_out + fake_out
+        loss_D.backward(retain_graph=True)
         optimizer_D.step()
+
+        # ------------------
+        #  Train Generators
+        # ------------------
+
+        optimizer_G.zero_grad()
+        loss_G = criterion_GAN(discriminator(gen_hr), gen_hr, imgs_hr)
+        loss_G.backward()
+        optimizer_G.step()
 
         # --------------
         #  Log Progress
         # --------------
 
         sys.stdout.write(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
+            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]\n"
             % (epoch, opt.n_epochs, i, len(dataloader), loss_D.item(), loss_G.item())
         )
 
@@ -161,3 +152,39 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # Save model checkpoints
         torch.save(generator.state_dict(), "saved_models/generator_%d.pth" % epoch)
         torch.save(discriminator.state_dict(), "saved_models/discriminator_%d.pth" % epoch)
+
+    generator.eval()
+    out_path = 'eval/'
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    with torch.no_grad():
+            total_ssim = 0
+            total_psnr = 0
+            for i, imgs in enumerate(val_dataloader):
+                imgs_lr = Variable(imgs["lr"].type(Tensor))
+                imgs_hr = Variable(imgs["hr"].type(Tensor))
+                if cuda:
+                    imgs_lr = imgs_lr.cuda()
+                    imgs_hr = imgs_hr.cuda()
+                imgs_sr = generator(imgs_lr)
+                mse = ((imgs_sr - imgs_hr) ** 2).data.mean()
+                ssim = pytorch_ssim.ssim(imgs_sr, imgs_hr).item()
+                psnr = 10 * log10((imgs_hr.max()**2) / mse)
+                sys.stdout.write(
+                    "[Epoch %d/%d] [Batch %d/%d] [SSIM: %f] [PSNR: %f]\n"
+                    % (epoch, opt.n_epochs, i, len(val_dataloader), ssim, psnr)
+                )
+                total_ssim += ssim
+                total_psnr += psnr
+                batches_done = epoch * len(val_dataloader) + i
+                if batches_done % opt.val_sample_interval == 0:
+                    # Save image grid with upsampled inputs and SRGAN outputs
+                    imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.scale_factor)
+                    gen_hr = make_grid(imgs_sr, nrow=1, normalize=True)
+                    imgs_lr = make_grid(imgs_lr, nrow=1, normalize=True)
+                    img_grid = torch.cat((imgs_lr, gen_hr), -1)
+                    save_image(img_grid, out_path+"epoch_%d"%epoch+"_%d.png" % batches_done, normalize=False)
+            sys.stdout.write(
+                "[average SSIM: %f] [average PSNR: %f]\n"
+                % ( total_ssim/len(val_dataloader), total_psnr/len(val_dataloader))
+            )

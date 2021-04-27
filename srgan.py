@@ -100,9 +100,12 @@ class Discriminator(nn.Module):
             layers.extend(discriminator_block(in_filters, out_filters, first_block=(i == 0)))
             in_filters = out_filters
 
-        layers.append(nn.Conv2d(out_filters, 1, kernel_size=3, stride=1, padding=1))
+        layers.append(nn.AdaptiveAvgPool2d(1))
+        layers.append(nn.Conv2d(512, 1024, kernel_size=1))
+        layers.append(nn.LeakyReLU(0.2))
+        layers.append(nn.Conv2d(1024, 1, kernel_size=1))
 
         self.model = nn.Sequential(*layers)
 
     def forward(self, img):
-        return self.model(img)
+        return torch.sigmoid(self.model(img))
