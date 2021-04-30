@@ -13,7 +13,7 @@ from tqdm import tqdm
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
 from loss import GeneratorLoss
-from model import Generator, Discriminator
+from baseline_model import Generator, Discriminator
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=256, type=int, help='training images crop size')
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         netD.train()
         it = 0
         for data, target in train_bar:
-            it+=1
+            it += 1
             g_update_first = True
             batch_size = data.size(0)
             running_results['batch_sizes'] += batch_size
@@ -87,7 +87,8 @@ if __name__ == '__main__':
             ###########################
             netG.zero_grad()
             g_loss = generator_criterion(fake_out, fake_img, real_img)
-            g_loss.backward()
+            with torch.autograd.set_detect_anomaly(True):
+                g_loss.backward()
 
             fake_img = netG(z)
             fake_out = netD(fake_img).mean()
