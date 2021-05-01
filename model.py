@@ -19,13 +19,14 @@ class Generator(nn.Module):
 
         self.scale_loop = int(math.log(scaling_factor, 2))
 
-        self.up = []
+        up = []
         for _ in range(self.scale_loop):
             conv_up = nn.Sequential(
                 nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=.2, inplace=True)
             )
-            self.up.append(conv_up)
+            up.append(conv_up)
+        self.up = nn.ModuleList(up)
 
         self.conv3 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
@@ -64,7 +65,7 @@ def conv_leakyrelu(in_channel, out_channel, kernel_size, stride=1, padding=0, bi
 
 
 class Discriminator(nn.Module):
-    def __init__(self, image_size):
+    def __init__(self, image_size=512):
         super(Discriminator, self).__init__()
 
         feature_size = image_size // 32
@@ -90,7 +91,6 @@ class Discriminator(nn.Module):
 
     def forward(self, img):
         conv_out = self.conv_layers(img)
-        pred = self.conv_layers(conv_out.flatten(start_dim=1))
+        pred = self.classifier(conv_out.flatten(start_dim=1))
         return pred
-
 
