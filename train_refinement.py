@@ -30,6 +30,9 @@ if __name__ == '__main__':
     UPSCALE_FACTOR = opt.upscale_factor
     NUM_EPOCHS = opt.num_epochs
 
+    decay_interval = NUM_EPOCHS // 8
+    decay_indices = [decay_interval, decay_interval * 2, decay_interval * 4, decay_interval * 6]
+
     train_set = TrainDatasetFromFolder('data/DIV2K_train_HR', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
     val_set = ValDatasetFromFolder('data/DIV2K_valid_HR', crop_size=CROP_SIZE*2, upscale_factor=UPSCALE_FACTOR)
     train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=4, shuffle=True)
@@ -55,7 +58,9 @@ if __name__ == '__main__':
 
     optimizerG = optim.Adam(netG.parameters())
     optimizerD = optim.Adam(netD.parameters())
-    optimizerR = optim.Adam(netR.parameters(), lr=0.0001)
+    optimizerR = optim.Adam(netR.parameters(), lr=0.001)
+
+    optimizerR_decay = optim.lr_scheduler.MultiStepLR(optimizerR, decay_indices, gamma=0.5)
 
     results = {'d_loss': [], 'g_loss': [], 'd_score': [], 'g_score': [], 'psnr': [], 'ssim': []}
 
@@ -145,6 +150,8 @@ if __name__ == '__main__':
                 imgs_lr = utils.make_grid(imgs_lr, nrow=1, normalize=True)
                 img_grid = torch.cat((imgs_lr, gen_hr, refine_hr), -1)
                 utils.save_image(img_grid, "images/%d.png" % batches_done, normalize=False)
+
+        optimizerR_decay.step()
 
         netG.eval()
         out_path = 'training_results/SRF_' + str(UPSCALE_FACTOR) + '/'

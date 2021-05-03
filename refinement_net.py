@@ -32,16 +32,17 @@ def stack(img, n, sigma=1):
 
 
 class RefinementNet(nn.Module):
-    def __init__(self, pyramid_level=5, num_channels=3, scale_ratio=0.2):
+    def __init__(self, out_channel=128, pyramid_level=5, num_channels=3, scale_ratio=0.2):
         super(RefinementNet, self).__init__()
+        self.out_channel = out_channel
         self.pyramid_level = pyramid_level
         conv_layers = []
         for i in range(pyramid_level):
-            conv = conv3x3_batchnorm(3, 128)
+            conv = conv3x3_batchnorm(3, out_channel)
             conv_layers.append(conv)
         self.conv_layers = nn.ModuleList(conv_layers)
 
-        self.final_conv = nn.Conv2d(self.pyramid_level*128, num_channels, kernel_size=1)
+        self.final_conv = nn.Conv2d(self.pyramid_level*out_channel, num_channels, kernel_size=1)
 
         self.scale_ratio = scale_ratio
 

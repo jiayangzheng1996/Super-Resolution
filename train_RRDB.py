@@ -12,14 +12,17 @@ from tqdm import tqdm
 
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
-from loss import GeneratorLoss
-from model import Generator, Discriminator
+from loss import EGeneratorLoss
+from model import Generator
+from baseline_model import Discriminator
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=256, type=int, help='training images crop size')
 parser.add_argument('--upscale_factor', default=8, type=int, choices=[2, 4, 8],
                     help='super resolution upscale factor')
 parser.add_argument('--num_epochs', default=100, type=int, help='train epoch number')
+parser.add_argument('--discriminator_cycle', default=1, type=int, help='training schedule for discriminator')
+parser.add_argument('--generator_cycle', default=1, type=int, help='training schedule for generator')
 
 
 if __name__ == '__main__':
@@ -32,18 +35,21 @@ if __name__ == '__main__':
     decay_interval = NUM_EPOCHS // 8
     decay_indices = [decay_interval, decay_interval*2, decay_interval*4, decay_interval*6]
 
+    discriminator_cycle = opt.discriminator_cycle
+    generator_cycle = opt.generator_cycle
+
     train_set = TrainDatasetFromFolder('data/DIV2K_train_HR', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
     val_set = ValDatasetFromFolder('data/DIV2K_valid_HR', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
-    train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=4, shuffle=True)
+    train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=8, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4, batch_size=1, shuffle=False)
 
-    netG = Generator(scaling_factor=UPSCALE_FACTOR)
+    netG = Generator(num_rrdb_blocks=16, scaling_factor=UPSCALE_FACTOR)
     print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
-    netD = Discriminator(image_size=CROP_SIZE)
+    netD = Discriminator()
     print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
 
 
-    generator_criterion = GeneratorLoss()
+    generator_criterion = EGeneratorLoss()
     discriminator_criterion = torch.nn.BCEWithLogitsLoss()
 
     if torch.cuda.is_available():
@@ -101,7 +107,7 @@ if __name__ == '__main__':
             # (2) Update G network: minimize 1-D(G(z)) + Perception Loss + Image Loss + TV Loss
             ###########################
             netG.zero_grad()
-            g_loss = generator_criterion(fake_out, fake_img, real_img)
+            g_loss = generator_criterion(fake_img, real_img, fake_out, real_out, real_label)
             g_loss.backward()
 
             fake_img = netG(z)
@@ -128,9 +134,9 @@ if __name__ == '__main__':
                 running_results['g_score'] / running_results['batch_sizes']
                                       ))
 
-            batches_done = (epoch-1) * 200 + it
+            batches_done = (epoch-1) * 100 + it
 
-            if batches_done%100 == 0:
+            if batches_done % 50 == 0:
                 imgs_lr = torch.nn.functional.interpolate(z, scale_factor=8)
                 gen_hr = utils.make_grid(fake_img, nrow=1, normalize=True)
                 imgs_lr = utils.make_grid(imgs_lr, nrow=1, normalize=True)

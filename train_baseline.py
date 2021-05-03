@@ -14,7 +14,6 @@ import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
 from loss import GeneratorLoss
 from baseline_model import Generator, Discriminator
-from refinement_net import RefinementNet
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=256, type=int, help='training images crop size')
@@ -81,8 +80,8 @@ if __name__ == '__main__':
             fake_img = netG(z)
 
             netD.zero_grad()
-            real_out = netD(real_img).mean()
-            fake_out = netD(fake_img).mean()
+            real_out = torch.sigmoid(netD(real_img)).mean()
+            fake_out = torch.sigmoid(netD(fake_img)).mean()
             d_loss = 1 - real_out + fake_out
             d_loss.backward(retain_graph=True)
             optimizerD.step()
@@ -95,7 +94,7 @@ if __name__ == '__main__':
             g_loss.backward()
 
             fake_img = netG(z)
-            fake_out = netD(fake_img).mean()
+            fake_out = torch.sigmoid(netD(fake_img)).mean()
 
 
             optimizerG.step()
@@ -124,7 +123,8 @@ if __name__ == '__main__':
                 imgs_lr = torch.nn.functional.interpolate(z, scale_factor=8)
                 gen_hr = utils.make_grid(fake_img, nrow=1, normalize=True)
                 imgs_lr = utils.make_grid(imgs_lr, nrow=1, normalize=True)
-                img_grid = torch.cat((imgs_lr, gen_hr), -1)
+                real_hr = utils.make_grid(real_img, nrow=1, normalize=True)
+                img_grid = torch.cat((imgs_lr, gen_hr, real_hr), -1)
                 utils.save_image(img_grid, "images/%d.png" % batches_done, normalize=False)
 
         netG.eval()

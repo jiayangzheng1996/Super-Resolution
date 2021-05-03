@@ -46,7 +46,7 @@ class Generator(nn.Module):
         conv3 = self.conv3(up_out)
         pred = self.conv4(conv3)
 
-        return pred
+        return (torch.tanh(pred) + 1) / 2
 
 
 

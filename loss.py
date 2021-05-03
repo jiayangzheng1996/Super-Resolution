@@ -3,6 +3,27 @@ from torch import nn
 from torchvision.models.vgg import vgg16
 
 
+class EGeneratorLoss(nn.Module):
+    def __init__(self):
+        super(EGeneratorLoss, self).__init__()
+        vgg = vgg16(pretrained=True)
+        loss_network = nn.Sequential(*list(vgg.features)[:31]).eval()
+        for param in loss_network.parameters():
+            param.requires_grad = False
+        self.loss_network = loss_network
+        self.mseloss = nn.MSELoss()
+        self.bceloss = nn.BCEWithLogitsLoss()
+        self.tvloss = TVLoss()
+
+    def forward(self, fake_img, real_img, fake_out, real_out, real_label):
+        pixel_loss = self.mseloss(fake_img, real_img.detach())
+        content_loss = self.mseloss(self.loss_network(fake_img), self.loss_network(real_img.detach()))
+        adversarial_loss = self.bceloss(fake_out - torch.mean(real_out), real_label)
+        tv_loss = self.tvloss(fake_img)
+
+        return 1 * pixel_loss + 0.006 * content_loss + 0.001*adversarial_loss + 2e-8 * tv_loss
+
+
 class GeneratorLoss(nn.Module):
     def __init__(self):
         super(GeneratorLoss, self).__init__()

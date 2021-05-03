@@ -81,7 +81,7 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         batch_size = x.size(0)
-        return torch.sigmoid(self.net(x).view(batch_size))
+        return self.net(x).view(batch_size, 1)
 
 
 class ResidualBlock(nn.Module):
