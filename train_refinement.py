@@ -12,9 +12,9 @@ from tqdm import tqdm
 
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
-from loss import GeneratorLoss
-from baseline_model import Generator, Discriminator
-from refinement_net import RefinementNet
+from model.loss import GeneratorLoss
+from model.baseline_model import Generator, Discriminator
+from model.refinement_net import RefinementNet
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=256, type=int, help='training images crop size')

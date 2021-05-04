@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
-from loss import EGeneratorLoss
-from model import Generator, Discriminator
+from model.loss import EGeneratorLoss
+from model.model import Generator, Discriminator
 # from baseline_model import Discriminator
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')

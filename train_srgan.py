@@ -2,18 +2,21 @@ import argparse
 import os
 from math import log10
 
+import torch
 import pandas as pd
 import torch.optim as optim
+from torch import Tensor
 import torch.utils.data
 import torchvision.utils as utils
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+import numpy as np
+
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
-from model.loss import GeneratorLoss
-from model.baseline_model import Generator, Discriminator
+from model.srgan import GeneratorResNet, Discriminator, FeatureExtractor
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=256, type=int, help='training images crop size')
@@ -34,20 +37,23 @@ if __name__ == '__main__':
     train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=4, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4, batch_size=1, shuffle=False)
 
-    netG = Generator(UPSCALE_FACTOR)
+    netG = GeneratorResNet()
     print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
-    netD = Discriminator()
+    netD = Discriminator((3, CROP_SIZE, CROP_SIZE))
     print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
 
+    feature_extractor = FeatureExtractor()
+    feature_extractor.eval()
 
-    generator_criterion = GeneratorLoss()
-    refinement_criterion = torch.nn.L1Loss()
+    criterion_GAN = torch.nn.MSELoss()
+    criterion_content = torch.nn.L1Loss()
 
     if torch.cuda.is_available():
         netG.cuda()
         netD.cuda()
-        generator_criterion.cuda()
-        refinement_criterion.cuda()
+        feature_extractor.cuda()
+        criterion_GAN.cuda()
+        criterion_content.cuda()
 
     optimizerG = optim.Adam(netG.parameters())
     optimizerD = optim.Adam(netD.parameters())
@@ -77,12 +83,16 @@ if __name__ == '__main__':
             z = Variable(data)
             if torch.cuda.is_available():
                 z = z.cuda()
+
+            valid = Variable(Tensor(np.ones((z.size(0), *netD.output_shape))), requires_grad=False).cuda()
+            fake = Variable(Tensor(np.zeros((z.size(0), *netD.output_shape))), requires_grad=False).cuda()
+
             fake_img = netG(z)
 
             netD.zero_grad()
-            real_out = torch.sigmoid(netD(real_img)).mean()
-            fake_out = torch.sigmoid(netD(fake_img)).mean()
-            d_loss = 1 - real_out + fake_out
+            real_out = torch.sigmoid(netD(real_img))
+            fake_out = torch.sigmoid(netD(fake_img))
+            d_loss = (criterion_GAN(real_out, valid) + criterion_GAN(fake_out, fake))/2
             d_loss.backward(retain_graph=True)
             optimizerD.step()
 
@@ -90,12 +100,21 @@ if __name__ == '__main__':
             # (2) Update G network: minimize 1-D(G(z)) + Perception Loss + Image Loss + TV Loss
             ###########################
             netG.zero_grad()
-            g_loss = generator_criterion(fake_out, fake_img, real_img)
+
+            gen_hr = netG(z)
+
+            adversarial_loss = criterion_GAN(torch.sigmoid(netD(gen_hr)), valid)
+
+            gen_feature = feature_extractor(gen_hr)
+            real_feature = feature_extractor(real_img)
+            content_loss = criterion_content(gen_feature, real_feature.detach())
+
+            g_loss = content_loss + 1e-3 * adversarial_loss
             g_loss.backward()
 
+            real_out = torch.sigmoid(netD(real_img)).mean()
             fake_img = netG(z)
             fake_out = torch.sigmoid(netD(fake_img)).mean()
-
 
             optimizerG.step()
 
