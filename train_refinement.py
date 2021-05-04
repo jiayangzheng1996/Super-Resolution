@@ -90,8 +90,8 @@ if __name__ == '__main__':
             fake_img = netG(z)
 
             netD.zero_grad()
-            real_out = netD(real_img).mean()
-            fake_out = netD(fake_img).mean()
+            real_out = torch.sigmoid(netD(real_img)).mean()
+            fake_out = torch.sigmoid(netD(fake_img)).mean()
             d_loss = 1 - real_out + fake_out
             d_loss.backward(retain_graph=True)
             optimizerD.step()
@@ -104,7 +104,7 @@ if __name__ == '__main__':
             g_loss.backward()
 
             fake_img = netG(z)
-            fake_out = netD(fake_img).mean()
+            fake_out = torch.sigmoid(netD(fake_img)).mean()
 
 
             optimizerG.step()
@@ -114,7 +114,7 @@ if __name__ == '__main__':
             ###########################
             netR.zero_grad()
             refine_img = netR(fake_img)
-            refine_out = netD(refine_img).mean()
+            refine_out = torch.sigmoid(netD(refine_img)).mean()
             refinement_loss = refinement_criterion(refine_img, real_img)
             refinement_loss.backward()
 

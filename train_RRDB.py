@@ -13,8 +13,8 @@ from tqdm import tqdm
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform
 from loss import EGeneratorLoss
-from model import Generator
-from baseline_model import Discriminator
+from model import Generator, Discriminator
+# from baseline_model import Discriminator
 
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=256, type=int, help='training images crop size')
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     netG = Generator(num_rrdb_blocks=16, scaling_factor=UPSCALE_FACTOR)
     print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
-    netD = Discriminator()
+    netD = Discriminator(opt.crop_size)
     print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
 
 
