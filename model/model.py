@@ -2,7 +2,6 @@ import math
 import torch
 from torch import nn
 import torch.nn.functional as F
-from RRDB import RRDB
 
 class Generator(nn.Module):
     def __init__(self, num_rrdb_blocks=16, scaling_factor=8):
@@ -68,7 +67,7 @@ class Discriminator(nn.Module):
     def __init__(self, image_size=512):
         super(Discriminator, self).__init__()
 
-        feature_size = image_size // 32
+        feature_size = -(image_size // -32)
 
         conv1 = conv_leakyrelu(3, 64, 3, 1, 1)
         conv2 = conv_leakyrelu(64, 64, 3, 2, 1, batchnorm=True)
@@ -93,4 +92,3 @@ class Discriminator(nn.Module):
         conv_out = self.conv_layers(img)
         pred = self.classifier(conv_out.flatten(start_dim=1))
         return pred
-
