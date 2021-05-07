@@ -15,13 +15,16 @@ class EGeneratorLoss(nn.Module):
         self.bceloss = nn.BCEWithLogitsLoss()
         self.tvloss = TVLoss()
 
-    def forward(self, fake_img, real_img, fake_out, real_out, real_label):
+    def forward(self, fake_img, real_img, fake_out, real_out, real_label, fake_out_hf=None, real_out_hf=None, real_label_hf=None):
         pixel_loss = self.mseloss(fake_img, real_img.detach())
         content_loss = self.mseloss(self.loss_network(fake_img), self.loss_network(real_img.detach()))
         adversarial_loss = self.bceloss(fake_out - torch.mean(real_out), real_label)
+        if fake_out_hf is not None:
+            adversarial_loss_hf = self.bceloss(fake_out_hf - torch.mean(real_out_hf), real_label_hf)
+        adversarial_loss = 0.5*adversarial_loss + 0.5*adversarial_loss_hf
         tv_loss = self.tvloss(fake_img)
 
-        return 1 * pixel_loss + 0.006 * content_loss + 0.001*adversarial_loss + 2e-8 * tv_loss
+        return 1 * pixel_loss + 0.006 * content_loss + 0.0005*adversarial_loss + 2e-8 * tv_loss
 
 
 class GeneratorLoss(nn.Module):
@@ -35,9 +38,13 @@ class GeneratorLoss(nn.Module):
         self.mse_loss = nn.MSELoss()
         self.tv_loss = TVLoss()
 
-    def forward(self, out_labels, out_images, target_images):
+    def forward(self, out_labels, out_images, target_images, fake_out_hf=None):
         # Adversarial Loss
-        adversarial_loss = torch.mean(1 - out_labels)
+        if fake_out_hf is not None:
+            adversarial_loss = torch.mean(1 - out_labels*0.5 - fake_out_hf*0.5)
+        else:
+            adversarial_loss = torch.mean(1 - out_labels)
+
         # Perception Loss
         perception_loss = self.mse_loss(self.loss_network(out_images), self.loss_network(target_images))
         # Image Loss
