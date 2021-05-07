@@ -1,3 +1,6 @@
 .gitignore
 /data/
 .idea
+*.pyc
+*.png
+*.pyc

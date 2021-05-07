@@ -1,6 +1,3 @@
-# This implementation of SRGAN is
-# from https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/srgan/models.py
-
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -34,7 +31,7 @@ class ResidualBlock(nn.Module):
 
 
 class GeneratorResNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=3, n_residual_blocks=16, scale_loop=2):
+    def __init__(self, in_channels=3, out_channels=3, n_residual_blocks=16):
         super(GeneratorResNet, self).__init__()
 
         # First layer
@@ -51,7 +48,7 @@ class GeneratorResNet(nn.Module):
 
         # Upsampling layers
         upsampling = []
-        for out_features in range(scale_loop):
+        for out_features in range(3):
             upsampling += [
                 # nn.Upsample(scale_factor=2),
                 nn.Conv2d(64, 256, 3, 1, 1),
