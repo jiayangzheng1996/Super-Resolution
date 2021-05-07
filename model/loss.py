@@ -19,6 +19,7 @@ class EGeneratorLoss(nn.Module):
         pixel_loss = self.mseloss(fake_img, real_img.detach())
         content_loss = self.mseloss(self.loss_network(fake_img), self.loss_network(real_img.detach()))
         adversarial_loss = self.bceloss(fake_out - torch.mean(real_out), real_label)
+        adversarial_loss_hf = 0
         if fake_out_hf is not None:
             adversarial_loss_hf = self.bceloss(fake_out_hf - torch.mean(real_out_hf), real_label_hf)
         adversarial_loss = 0.5*adversarial_loss + 0.5*adversarial_loss_hf
