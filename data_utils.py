@@ -56,16 +56,20 @@ class TrainDatasetFromFolder(Dataset):
 
 
 class ValDatasetFromFolder(Dataset):
-    def __init__(self, dataset_dir, upscale_factor, crop_size):
+    def __init__(self, dataset_dir, upscale_factor, crop_size, refinement=False):
         super(ValDatasetFromFolder, self).__init__()
         self.upscale_factor = upscale_factor
         self.image_filenames = [join(dataset_dir, x) for x in listdir(dataset_dir) if is_image_file(x)]
         self.crop_size = crop_size
+        self.refinement = refinement
 
     def __getitem__(self, index):
         hr_image = Image.open(self.image_filenames[index])
         w, h = hr_image.size
-        crop_size = calculate_valid_crop_size(min(h, w), self.upscale_factor)
+        if not self.refinement:
+            crop_size = calculate_valid_crop_size(min(h, w), self.upscale_factor)
+        else:
+            crop_size = calculate_valid_crop_size(self.crop_size, self.upscale_factor)
         lr_scale = Resize(crop_size // self.upscale_factor, interpolation=Image.BICUBIC)
         hr_scale = Resize(crop_size, interpolation=Image.BICUBIC)
         hr_image = CenterCrop(crop_size)(hr_image)

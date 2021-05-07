@@ -34,7 +34,7 @@ if __name__ == '__main__':
     decay_indices = [decay_interval, decay_interval * 2, decay_interval * 4, decay_interval * 6]
 
     train_set = TrainDatasetFromFolder('data/DIV2K_train_HR', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
-    val_set = ValDatasetFromFolder('data/DIV2K_valid_HR', crop_size=CROP_SIZE*2, upscale_factor=UPSCALE_FACTOR)
+    val_set = ValDatasetFromFolder('data/DIV2K_valid_HR', crop_size=CROP_SIZE*2, upscale_factor=UPSCALE_FACTOR, refinement=True)
     train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=4, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4, batch_size=1, shuffle=False)
 
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
     netD = Discriminator()
     print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
-    netR = RefinementNet()
+    netR = RefinementNet(out_channel=256)
     print('# refinement_network parameters:', sum(param.numel() for param in netR.parameters()))
 
 
@@ -71,6 +71,7 @@ if __name__ == '__main__':
 
         netG.train()
         netD.train()
+        netR.train()
         it = 0
         for data, target in train_bar:
             it += 1
@@ -154,6 +155,7 @@ if __name__ == '__main__':
         optimizerR_decay.step()
 
         netG.eval()
+        netR.eval()
         out_path = 'training_results/SRF_' + str(UPSCALE_FACTOR) + '/'
         if not os.path.exists(out_path):
             os.makedirs(out_path)
@@ -198,13 +200,13 @@ if __name__ == '__main__':
 
                 val_images.extend(
                     [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
-                     display_transform()(sr.data.cpu().squeeze(0))])
+                     display_transform()(sr.data.cpu().squeeze(0)), display_transform()(rsr.data.cpu().squeeze(0))])
             val_images = torch.stack(val_images)
             val_images = torch.chunk(val_images, val_images.size(0) // 15)
             val_save_bar = tqdm(val_images, desc='[saving training results]')
             index = 1
             for image in val_save_bar:
-                image = utils.make_grid(image, nrow=3, padding=5)
+                image = utils.make_grid(image, nrow=4, padding=5)
                 utils.save_image(image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
                 index += 1
 

@@ -9,8 +9,8 @@ from torch import functional as F
 def conv3x3_batchnorm(in_channel, out_channel, padding=1):
     return nn.Sequential(
         nn.Conv2d(in_channel, out_channel, kernel_size=3, padding=padding),
-        nn.ReLU(inplace=True),
-        nn.BatchNorm2d(out_channel)
+        nn.BatchNorm2d(out_channel),
+        nn.ReLU(inplace=True)
     )
 
 
@@ -58,6 +58,7 @@ class RefinementNet(nn.Module):
             outputs.append(output)
         output = torch.cat(outputs, dim=1)
         pred = self.final_conv(output)
+        pred = (torch.tanh(pred) + 1) / 2
         return pred * self.scale_ratio + gen_image
 
 

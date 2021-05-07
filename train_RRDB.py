@@ -48,7 +48,6 @@ if __name__ == '__main__':
     netD = Discriminator(opt.crop_size)
     print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
 
-
     generator_criterion = EGeneratorLoss()
     discriminator_criterion = torch.nn.BCEWithLogitsLoss()
 

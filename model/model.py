@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 import torch.nn.functional as F
-from RRDB import RRDB
+from model.RRDB import RRDB
 
 class Generator(nn.Module):
     def __init__(self, num_rrdb_blocks=16, scaling_factor=8):
